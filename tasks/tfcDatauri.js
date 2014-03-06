@@ -1,7 +1,12 @@
 var grunt = require('grunt');
 var fs = require('fs');
+var path = require('path');
 var gruntTextReplace = {};
 
+var EXT_TYPES = {
+    JS: '.js',
+    HTML: '.html'
+};
 var IMAGES = {
 	png: 'image/png',
 	gif: 'image/gif',
@@ -18,9 +23,17 @@ module.exports = function(grunt){
 			var _src = grunt.file.read(_loadFile);
 			_data.options = _data.options || {};
 			var _varName = _data.options.varName || 'manifest';
-			var _startManifest = _src.match(new RegExp('var ' + _varName + ' ?='));
+            var _startManifest;
+
+            if (path.extname(_loadFile) === EXT_TYPES.JS) {
+                _varName = 'manifest';
+                _startManifest = _src.match(new RegExp(_varName + ': '));
+            } else {
+			    _startManifest = _src.match(new RegExp('var ' + _varName + ' ?='));
+            }
+
 			var _isLog = _data.options.log || false;
-			
+
 			if(_startManifest===null){
 				grunt.fail.warn('No such  " ' + _varName +' "  object !!');
 				return;
@@ -29,10 +42,10 @@ module.exports = function(grunt){
 			var _finishManifest = _startManifest.input.match(/]/);
 			//manifestデータ抽出
 			var _manifest = _startManifest.input.substring(_startManifest.index-1, _finishManifest.index + 1);
-			
+
 			//base64化されたデータ格納用
 			var _resultManifest = _data.dest ? 'var ' + _varName + ' = [\n' : '';
-			
+
 			var _imagesObj = _manifest.split(/}/);
 			_imagesObj.shift();
 			_imagesObj.pop();
@@ -54,13 +67,13 @@ module.exports = function(grunt){
 				var _mimeType = gruntTfcDatauri.getImageMimeType(_img);
 				var _base64 = gruntTfcDatauri.encode(_dir + _img);
 				var _dataUri = 'data:' + _mimeType + ';base64,' + _base64;
-				
+
 				_resultManifest += '{"id":"'+ _id + '", "type":createjs.PreloadJS.IMAGE, "src":"' + _dataUri + '"}';
 				if(i < _imagesObj.length - 1)
 				_resultManifest += ',\n';
 			};
 			_resultManifest += '\n];';
-			
+
 			if(_data.dest){
 				//manifest json書き出し
 				grunt.file.write(_data.dest, _resultManifest);
@@ -82,7 +95,7 @@ gruntTfcDatauri = {
 		}
 		return null;
 	},
-	
+
 	encode : function(path) {
 		if(grunt.file.isFile(path)){
 			return new Buffer(fs.readFileSync(path)).toString('base64');
@@ -94,32 +107,32 @@ gruntTfcDatauri = {
 	createJson : function(dir, name) {
 		fs.readdir(dir, function(err, files) {
 			var json = null;
-	
+
 			for (var i = 0, length = files.length; i < length; i++) {
 				var file = files[i],
 					path = dir + '/' + file;
-	
+
 				if (fs.statSync(path).isDirectory()) {
 					createJson(path);
 				} else {
 					var mimeType = gruntTfcDatauri.getImageMimeType(path);
 					if (mimeType) {
 						if (json === null) json = {};
-	
+
 						var key = file.substring(0, file.indexOf('.')),
 							value = 'data:' + mimeType + ';base64,' + gruntTfcDatauri.encode(path);
-	
+
 						json[key] = value;
 					}
-	
+
 				}
 			}
-	
+
 			if (json) {
 				var fileName = dir.replace(ROOT_PATH + '/', '').replace('/', '_') + '.json';
 				var distPath = DIST_PATH + '/' + fileName;
 				console.log('create json: ' + distPath);
-	
+
 				fs.writeFile(distPath, global.JSON.stringify(json));
 			}
 		});
